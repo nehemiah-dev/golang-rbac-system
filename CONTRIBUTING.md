@@ -10,12 +10,10 @@ your first PR.
 
 We don't formally assign tasks. Instead:
 
-1. Check the **Project Board** (GitHub Projects) for open issues.
-2. Pick one that's unclaimed (no linked draft PR yet).
-3. Open a **draft PR** immediately — even before writing code. The draft PR *is* your
-   claim on that task. This tells everyone else "this one's taken" in real time.
-4. Move the issue to `In Progress` on the board.
-5. When ready for review, mark the PR "Ready for review" and request a review from the
+1. Check the **Project Board** for open issues.
+2. Pick one that's unclaimed.
+3. Assign yourself immediately — even before writing code. This tells everyone else "this one's taken" in real time.
+4. When ready for review, mark the PR "Ready for review" and request a review from the
    team lead.
 
 If you start a task and get stuck or lose steam, **say so early** in the PR or whatsapp
@@ -59,8 +57,6 @@ Check [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the agreed interfaces (e.g. 
 3. Build against that interface with a mock/stub if the real implementation isn't
    ready yet.
 
-This is how multiple people build auth, email, and upload in parallel without
-waiting on each other.
 
 ---
 
@@ -113,12 +109,13 @@ Before marking a PR "Ready for review":
 - [ ] PR touches one package (or the cross-cutting change was pre-agreed)
 - [ ] `go vet ./...` and `golangci-lint run` pass locally
 - [ ] `go test ./...` passes locally
+- [ ] `govulncheck ./...` passes locally
 - [ ] New env vars are added to `.env.example`
 - [ ] New migrations are sequentially numbered and don't edit merged ones
 - [ ] PR description says **what** changed and **why** (link the issue)
 - [ ] If you touched a shared interface, you've flagged it in the team channel
 
-CI will re-run lint/vet/test automatically. A PR can't merge until CI is green and it
+CI will re-run lint/vet/test/vulntest automatically. A PR can't merge until CI is green and it
 has at least one approval.
 
 ---
@@ -137,10 +134,10 @@ has at least one approval.
 
 ## 9. Local Environment
 
-- Run `docker-compose up` to get Postgres + the app running locally. Everyone uses the
+- Run `make up` to get the app running locally. Everyone uses the
   same setup — no "works on my machine."
-- Copy `.env.example` to `.env` and fill in your own Cloudinary/SMTP test credentials.
-- Run `go test ./...` before pushing, every time.
+- Copy `.env.example` to `.env` and fill in your own test credentials.
+- Run `make up` before pushing, every time.
 
 ---
 

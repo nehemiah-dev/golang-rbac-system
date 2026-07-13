@@ -109,7 +109,7 @@ This is the agreed entity design. **These are decisions, not code** — the actu
 `.sql` migration files are a separate, claimable task (see `CONTRIBUTING.md` §1).
 Whoever picks that task up implements exactly this shape; they don't redesign it.
 
-[DATABASE ARCHITECTURE](./rbac-db-arc.png)
+![DATABASE ARCHITECTURE](./rbac-db-arc.png)
 
 ### Entities
 

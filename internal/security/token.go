@@ -1,20 +1,30 @@
 package security
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
-	"os"
-	"errors"
-	"context"
+
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/auth"
+	usersdb "github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/users/sqlc"
 )
 
+// TokenService issues and validates JWT access tokens and opaque,
+// DB-backed refresh tokens. It is a thin orchestration layer over
+// auth.JWTUtil (signing/hashing) and the refresh_tokens table
+// (single-use + revocation state).
 type TokenService interface {
-	GenerateAccessToken(userID, role string) (string, error) 			// 15 min expiry
-	GenerateRefreshToken(userID string) (string, error)					// 7 day, single use
+	GenerateAccessToken(userID, role string) (string, error)                 // 15 min expiry
+	GenerateRefreshToken(ctx context.Context, userID string) (string, error) // 7 day, single use
 	VerifyAccessToken(token string) (*Claims, error)
 	RotateRefreshToken(ctx context.Context, oldToken string) (*TokenPair, error)
-	RevokeAllForUser(ctx context.Context, userID string) error        	// on logout/password change
+	RevokeAllForUser(ctx context.Context, userID string) error // on logout/password change
 }
 
 type Claims struct {
@@ -24,129 +34,130 @@ type Claims struct {
 }
 
 type TokenPair struct {
-	AccessToken string
+	AccessToken  string
 	RefreshToken string
 }
 
-func GenerateAccessToken(userID, role string) (string, error) {
-	secret := os.Getenv("JWT_ACCESS_SECRET")
-
-	if secret == "" {
-		return "", fmt.Errorf("JWT access secret key is not set in environment variables")
-	}
-
-	secretKey := []byte(secret)
-
-	// Create claims payload with expiration metadata
-	claims := Claims{
-		UserID: userID,
-		Role:   role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)), // Expire in 15m
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	// Create token with HS256 signing algorithm
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Sign token with secret key string
-	signedAccessToken, err := token.SignedString(secretKey)
-
-	if err != nil {
-		return "", fmt.Errorf("failed to create access token: %w", err)
-	}
-
-	return signedAccessToken, nil
+type jwtTokenService struct {
+	jwtUtil *auth.JWTUtil
+	repo    *auth.Repository
 }
 
-func GenerateRefreshToken(userID string) (string, error) {
-	secret := os.Getenv("JWT_ACCESS_SECRET")
+var _ TokenService = (*jwtTokenService)(nil)
 
-	if secret == "" {
-		return "", fmt.Errorf("JWT refresh secret key is not set in environment variables")
+// NewJWTTokenService builds a TokenService backed by the given JWTUtil
+// (token signing/hashing) and database pool (refresh_tokens store).
+func NewJWTTokenService(jwtUtil *auth.JWTUtil, pool *pgxpool.Pool) TokenService {
+	return &jwtTokenService{
+		jwtUtil: jwtUtil,
+		repo:    auth.NewRepository(pool),
 	}
-
-	secretKey := []byte(secret)
-
-	// Create claims payload with expiration metadata
-	claims := Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(7 * 24 * time.Hour)), // Expire in 7 days
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-
-	// Create token with HS256 signing algorithm
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Sign token with secret key string
-	signedRefreshToken, err := token.SignedString(secretKey)
-
-	if err != nil {
-		return "", fmt.Errorf("failed to create refresh token: %w", err)
-	}
-
-	return signedRefreshToken, nil
 }
 
-func VerifyAccessToken(tokenString string) (*Claims, error) {
-	secret := os.Getenv("JWT_ACCESS_SECRET")
-
-	if secret == "" {
-		return nil, fmt.Errorf("JWT access secret key is not set in environment variables")
+func (s *jwtTokenService) GenerateAccessToken(userID, role string) (string, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return "", fmt.Errorf("invalid user id: %w", err)
 	}
 
-	secretKey := []byte(secret)
+	return s.jwtUtil.GenerateAccessToken(uid, role)
+}
 
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {
-		// Verify standard signing algorithm layout
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
-		}
-		return secretKey, nil
+func (s *jwtTokenService) GenerateRefreshToken(ctx context.Context, userID string) (string, error) {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return "", fmt.Errorf("invalid user id: %w", err)
+	}
+
+	rawToken, tokenHash, err := s.jwtUtil.GenerateRefreshToken()
+	if err != nil {
+		return "", err
+	}
+
+	_, err = s.repo.CreateRefreshToken(ctx, usersdb.CreateRefreshTokenParams{
+		UserID:    uid,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().UTC().Add(s.jwtUtil.RefreshTokenTTL()),
 	})
+	if err != nil {
+		return "", fmt.Errorf("failed to persist refresh token: %w", err)
+	}
 
+	return rawToken, nil
+}
+
+func (s *jwtTokenService) VerifyAccessToken(tokenString string) (*Claims, error) {
+	claims, err := s.jwtUtil.ValidateAccessToken(tokenString)
 	if err != nil {
 		return nil, err
 	}
 
-	// Extract validation context details from metadata fields
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
-	}
-
-	return nil, errors.New("invalid token payload")
-}
-
-func RotateRefreshToken(ctx context.Context, oldToken string) (*TokenPair, error) {
-	// Verify the old refresh token
-	claims, err := VerifyAccessToken(oldToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to verify old refresh token: %w", err)
-	}
-
-	// Generate a new refresh token
-	newRefreshToken, err := GenerateRefreshToken(claims.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate new refresh token: %w", err)
-	}
-
-	// Generate a new access token
-	newAccessToken, err := GenerateAccessToken(claims.UserID, claims.Role)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate new access token: %w", err)
-	}
-
-	return &TokenPair{
-		AccessToken:  newAccessToken,
-		RefreshToken: newRefreshToken,
+	return &Claims{
+		UserID:           claims.UserID.String(),
+		Role:             claims.Role,
+		RegisteredClaims: claims.RegisteredClaims,
 	}, nil
 }
 
-func RevokeAllForUser(ctx context.Context, userID string) error {
-	// Implement logic to revoke all tokens for the user, e.g., by storing a revocation list in a database or cache.
-	// This is a placeholder implementation and should be replaced with actual revocation logic.
-	return nil
+// RotateRefreshToken verifies oldToken against the refresh_tokens store,
+// rejects it if expired or already used (revoking every other session for
+// the user on reuse, since reuse of a single-use token indicates theft),
+// and — only once oldToken is confirmed valid and unused — atomically
+// revokes it and issues a fresh access/refresh pair.
+func (s *jwtTokenService) RotateRefreshToken(ctx context.Context, oldToken string) (*TokenPair, error) {
+	hash := s.jwtUtil.HashRefreshToken(oldToken)
+
+	stored, err := s.repo.GetRefreshTokenByHash(ctx, hash)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, auth.ErrRefreshTokenInvalid
+		}
+		return nil, err
+	}
+
+	if stored.IsRevoked {
+		_ = s.repo.RevokeAllRefreshTokensForUser(ctx, stored.UserID)
+		return nil, auth.ErrRefreshTokenReuse
+	}
+
+	if time.Now().UTC().After(stored.ExpiresAt) {
+		return nil, auth.ErrRefreshTokenExpired
+	}
+
+	user, err := s.repo.GetByID(ctx, stored.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.RevokeRefreshToken(ctx, stored.ID); err != nil {
+		return nil, err
+	}
+
+	accessToken, refreshToken, refreshHash, err := s.jwtUtil.IssueTokenPair(user.ID, user.Role)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.repo.CreateRefreshToken(ctx, usersdb.CreateRefreshTokenParams{
+		UserID:    user.ID,
+		TokenHash: refreshHash,
+		ExpiresAt: time.Now().UTC().Add(s.jwtUtil.RefreshTokenTTL()),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func (s *jwtTokenService) RevokeAllForUser(ctx context.Context, userID string) error {
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user id: %w", err)
+	}
+
+	return s.repo.RevokeAllRefreshTokensForUser(ctx, uid)
 }

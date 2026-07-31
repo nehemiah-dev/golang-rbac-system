@@ -8,7 +8,7 @@ package usersdb
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 const createUser = `-- name: CreateUser :one
@@ -62,7 +62,7 @@ SELECT id, email, password_hash, role, is_verified, created_at, updated_at FROM 
 WHERE id = $1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
@@ -84,8 +84,8 @@ WHERE id = $1
 `
 
 type UpdateUserRoleParams struct {
-	ID   pgtype.UUID `json:"id"`
-	Role string      `json:"role"`
+	ID   uuid.UUID `json:"id"`
+	Role string    `json:"role"`
 }
 
 func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) error {
@@ -99,7 +99,7 @@ SET is_verified = true
 WHERE id = $1
 `
 
-func (q *Queries) VerifyUser(ctx context.Context, id pgtype.UUID) error {
+func (q *Queries) VerifyUser(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, verifyUser, id)
 	return err
 }

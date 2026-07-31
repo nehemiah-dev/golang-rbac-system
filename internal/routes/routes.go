@@ -5,13 +5,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/auth"
-	"github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/users"
 )
 
-func SetupRoutes(db *pgxpool.Pool, app *gin.Engine) {
-	authRepository := users.NewRepository(db)
-	authService := auth.NewService(authRepository)
+func SetupRoutes(db *pgxpool.Pool, jwtUtil *auth.JWTUtil, app *gin.Engine) {
+	authRepository := auth.NewRepository(db)
+	authService := auth.NewService(authRepository, jwtUtil)
 	authHandlers := auth.NewHandler(authService)
 	app.POST("/auth/register", authHandlers.RegisterUser)
 	app.POST("/auth/login", authHandlers.LoginUser)
+	app.POST("/auth/refresh", authHandlers.RefreshTokens)
+	app.POST("/auth/logout", authHandlers.Logout)
 }

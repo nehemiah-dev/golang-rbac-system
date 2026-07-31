@@ -36,7 +36,13 @@ func main() {
 		return
 	}
 
-	routes.SetupRoutes(pool, router)
+	jwtUtil, err := initializers.InitJWT()
+	if err != nil {
+		log.Println("Failed to initialize JWT:", err.Error())
+		return
+	}
+
+	routes.SetupRoutes(pool, jwtUtil, router)
 
 	log.Println("Successfully connected to the database")
 	log.Printf("server listening on: %q\n", addr) // #nosec G706

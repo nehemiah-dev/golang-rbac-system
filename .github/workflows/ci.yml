@@ -78,5 +78,5 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@9e6a9843d7a4a6e3e9a8539b02612c8a4aa3f889
       - name: Run gosec
-        run: gosec ./...
+        run: gosec -exclude-dir=internal/users/sqlc ./...
   

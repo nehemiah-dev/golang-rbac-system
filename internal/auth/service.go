@@ -25,7 +25,7 @@ type TokenPair struct {
 	User         usersdb.User
 	AccessToken  string
 	RefreshToken string
-	ExpiresIn int64 // Life span of access token
+	ExpiresIn    int64 // Life span of access token
 }
 
 type Service interface {

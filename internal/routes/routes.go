@@ -9,8 +9,8 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
-	"github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/auth"
 	_ "github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/docs"
+	"github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/auth"
 )
 
 func SetupRoutes(db *pgxpool.Pool, jwtUtil *auth.JWTUtil, app *gin.Engine) {

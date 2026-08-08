@@ -22,13 +22,14 @@ var (
 )
 
 type TokenPair struct {
+	User         usersdb.User
 	AccessToken  string
 	RefreshToken string
-	ExpiresIn    int64 // Life span of access token
+	ExpiresIn int64 // Life span of access token
 }
 
 type Service interface {
-	RegisterWithPassword(ctx context.Context, email, password string) error
+	RegisterWithPassword(ctx context.Context, email, password string) (usersdb.User, error)
 	LoginWithPassword(ctx context.Context, email, password string) (*TokenPair, error)
 	Logout(ctx context.Context, rawRefreshToken string) error
 	RefreshTokens(ctx context.Context, rawRefreshToken string) (*TokenPair, error)
@@ -46,37 +47,38 @@ func NewService(repository *Repository, jwtUtil *JWTUtil) Service {
 	}
 }
 
-func (s *authService) RegisterWithPassword(ctx context.Context, email, password string) error {
+func (s *authService) RegisterWithPassword(ctx context.Context, email, password string) (usersdb.User, error) {
 	_, err := s.Repository.GetByEmail(ctx, email)
 	if err == nil {
-		return ErrUserWithEmailAlreadyExists
+		return usersdb.User{}, ErrUserWithEmailAlreadyExists
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		log.Println("failed to check existing user:", err)
-		return err
+		return usersdb.User{}, err
 	}
 
-	// Hash password
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Println("Something went wrong while hashing the password", err.Error())
-		return err
+		return usersdb.User{}, err
 	}
 
-	_, err = s.Repository.Create(ctx, usersdb.CreateUserParams{
+	user, err := s.Repository.Create(ctx, usersdb.CreateUserParams{
 		Email:        email,
 		PasswordHash: string(passwordHash),
 	})
 	if err != nil {
 		log.Println("Something went wrong while trying to save the new user in the db", err.Error())
-		return err
+		return usersdb.User{}, err
 	}
-	return nil
+	return user, nil
 }
 
 func (s *authService) LoginWithPassword(ctx context.Context, email, password string) (*TokenPair, error) {
 	existingUser, err := s.Repository.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			dummyHash := "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewrGQmMDL4g0/tKu"
+			_ = bcrypt.CompareHashAndPassword([]byte(dummyHash), []byte(password))
 			return nil, ErrNonExistentUser
 		}
 		log.Println("failed to check existing user:", err)
@@ -116,6 +118,7 @@ func (s *authService) LoginWithPassword(ctx context.Context, email, password str
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.jwtUtil.AccessTokenTTL().Seconds()),
+		User:         existingUser,
 	}, nil
 }
 
@@ -148,7 +151,6 @@ func (s *authService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 		return nil, err
 	}
 
-	// If there's a breach revoke all tokens for the user
 	if token.IsRevoked {
 		_ = s.Repository.RevokeAllRefreshTokensForUser(ctx, token.UserID)
 		return nil, ErrRefreshTokenReuse
@@ -163,7 +165,6 @@ func (s *authService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 		return nil, err
 	}
 
-	// revoke the used token immediately before issuing a new one
 	err = s.Repository.RevokeRefreshToken(ctx, token.ID)
 	if err != nil {
 		return nil, err
@@ -189,5 +190,6 @@ func (s *authService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(s.jwtUtil.AccessTokenTTL().Seconds()),
+		User:         user,
 	}, nil
 }

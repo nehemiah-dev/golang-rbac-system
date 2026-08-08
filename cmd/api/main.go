@@ -13,27 +13,42 @@ import (
 	"github.com/Steve-s-Circle-on-System-Design/golang-rbac-system/internal/routes"
 )
 
+// @title           Golang RBAC System API
+// @version         1.0.0
+// @description     Authentication and Role-Based Access Control REST API service.
+// @host            localhost:8080
+// @BasePath        /
+// @securityDefinitions.apikey BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 Type "Bearer" followed by a space and your JWT access token.
 func main() {
 	router := gin.Default()
 	router.GET("/health", healthHandler)
-	err := initializers.LoadConfig()
-	if err != nil {
-		log.Println("Failed to load config", err.Error())
-		return
+
+	if err := initializers.LoadConfig(); err != nil {
+		log.Fatalln("Failed to load config:", err.Error())
 	}
-	PORT := ":" + os.Getenv("PORT")
-	addr := PORT
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	addr := ":" + port
+
 	ctx := context.Background()
+
 	pool, err := initializers.ConnectToDB(ctx)
 	if err != nil {
-		log.Println("Failed to connect to DB", err.Error())
+		log.Fatalln("Failed to connect to DB:", err.Error())
 	}
-	// DI here
+	defer pool.Close()
+
 	err = pool.Ping(ctx)
 	if err != nil {
 		log.Println("Database is unreachable or offline:", err.Error())
 		pool.Close()
-		return
+		return // Using return allows defers to execute cleanly instead of log.Fatalln
 	}
 
 	jwtUtil, err := initializers.InitJWT()
@@ -45,10 +60,11 @@ func main() {
 	routes.SetupRoutes(pool, jwtUtil, router)
 
 	log.Println("Successfully connected to the database")
-	log.Printf("server listening on: %q\n", addr) // #nosec G706
+	log.Printf("server listening on: %s\n", addr)
 
 	if err := router.Run(addr); err != nil {
-		log.Fatalf("server failed: %v", err)
+		log.Printf("server failed: %v", err)
+		return
 	}
 }
 

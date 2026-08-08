@@ -19,8 +19,8 @@ type LogoutRequest struct {
 }
 
 type SuccessResponse[T any] struct {
-	Message string `json:"message" example:"User registered successfully"`
 	Data    T      `json:"data"`
+	Message string `json:"message" example:"User registered successfully"`
 }
 
 // ErrorResponse is the standard error envelope returned by all auth endpoints.
@@ -33,8 +33,8 @@ type UserResponse struct {
 	ID        string `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
 	Email     string `json:"email" example:"user@example.com"`
 	Role      string `json:"role" example:"USER"`
-	Verified  bool   `json:"isVerified" example:"false"`
 	CreatedAt string `json:"createdAt" example:"2026-08-05T09:00:00Z"`
+	Verified  bool   `json:"isVerified" example:"false"`
 }
 
 // RegisterUserResponse is returned on successful registration.
@@ -46,9 +46,9 @@ type RegisterUserResponse struct {
 // LoginData is the token + user payload shared by login and refresh responses.
 type LoginData struct {
 	AccessToken string       `json:"accessToken"`
-	ExpiresIn   int64        `json:"expiresIn" example:"900"`
 	TokenType   string       `json:"tokenType" example:"Bearer"`
 	User        UserResponse `json:"user"`
+	ExpiresIn   int64        `json:"expiresIn" example:"900"`
 }
 
 // LoginUserResponse is returned on successful login.

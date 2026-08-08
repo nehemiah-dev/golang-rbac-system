@@ -1,0 +1,249 @@
+basePath: /
+definitions:
+  internal_auth.ErrorResponse:
+    properties:
+      message:
+        example: something went wrong
+        type: string
+    type: object
+  internal_auth.LoginData:
+    properties:
+      accessToken:
+        type: string
+      expiresIn:
+        example: 900
+        type: integer
+      tokenType:
+        example: Bearer
+        type: string
+      user:
+        $ref: '#/definitions/internal_auth.UserResponse'
+    type: object
+  internal_auth.LoginUserResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_auth.LoginData'
+      message:
+        example: User logged in successfully
+        type: string
+    type: object
+  internal_auth.LoginWithPasswordRequest:
+    properties:
+      email:
+        type: string
+      password:
+        maxLength: 32
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_auth.LogoutRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  internal_auth.LogoutResponse:
+    properties:
+      message:
+        example: Logged out successfully
+        type: string
+    type: object
+  internal_auth.RefreshTokenRequest:
+    properties:
+      refreshToken:
+        type: string
+    required:
+    - refreshToken
+    type: object
+  internal_auth.RefreshTokenResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_auth.LoginData'
+      message:
+        example: Tokens refreshed successfully
+        type: string
+    type: object
+  internal_auth.RegisterUserResponse:
+    properties:
+      data:
+        $ref: '#/definitions/internal_auth.UserResponse'
+      message:
+        example: User registered successfully
+        type: string
+    type: object
+  internal_auth.RegisterWithPasswordRequest:
+    properties:
+      email:
+        type: string
+      password:
+        maxLength: 32
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  internal_auth.UserResponse:
+    properties:
+      createdAt:
+        example: "2026-08-05T09:00:00Z"
+        type: string
+      email:
+        example: user@example.com
+        type: string
+      id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      isVerified:
+        example: false
+        type: boolean
+      role:
+        example: USER
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Authentication and Role-Based Access Control REST API service.
+  title: Golang RBAC System API
+  version: 1.0.0
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Logs in a user account with email and password
+      parameters:
+      - description: User login payload
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.LoginWithPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_auth.LoginUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+      summary: Log in with email and password
+      tags:
+      - users
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revokes the given refresh token, ending the session
+      parameters:
+      - description: Logout payload
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_auth.LogoutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+      summary: Log out user
+      tags:
+      - users
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: Issues a new access/refresh token pair using a valid refresh token
+      parameters:
+      - description: Refresh token payload
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_auth.RefreshTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+      summary: Refresh access token
+      tags:
+      - users
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new user account with email and password
+      parameters:
+      - description: User registration payload
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.RegisterWithPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_auth.RegisterUserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/internal_auth.ErrorResponse'
+      summary: Register a new user
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and your JWT access token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

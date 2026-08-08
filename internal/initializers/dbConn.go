@@ -11,7 +11,7 @@ import (
 
 func ConnectToDB(ctx context.Context) (*pgxpool.Pool, error) {
 	DB_USER := os.Getenv("DATABASE_USER")
-	DB_PASS := os.Getenv("DATABASE_PASS")
+	DB_PASS := os.Getenv("DATABASE_PASSWORD")
 	DB_HOST := os.Getenv("DATABASE_HOST")
 	DB_NAME := os.Getenv("DATABASE_NAME")
 	DB_PORT := os.Getenv("DATABASE_PORT")

@@ -63,6 +63,7 @@ func main() {
 	routes.SetupRoutes(pool, jwtUtil, router)
 
 	log.Println("Successfully connected to the database")
+	// #nosec G706 -- addr is set strictly via system environment and validated
 	log.Printf("server listening on: %s\n", addr)
 
 	if err := router.Run(addr); err != nil {

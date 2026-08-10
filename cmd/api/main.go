@@ -34,6 +34,9 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+	if !initializers.IsValidPort(port) {
+		log.Fatalf("invalid PORT value")
+	}
 	addr := ":" + port
 
 	ctx := context.Background()
